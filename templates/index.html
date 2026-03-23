@@ -11,6 +11,9 @@
     .tab-active { background: #4f46e5; color: white; }
     .tab-inactive { background: #f1f5f9; color: #64748b; }
     .tab-inactive:hover { background: #e2e8f0; }
+    .out-active { background: #4f46e5; color: white; }
+    .out-inactive { background: #f1f5f9; color: #64748b; }
+    .out-inactive:hover { background: #e2e8f0; }
     textarea { resize: none; }
     .output-text { white-space: pre-wrap; line-height: 1.9; }
     .fade-in { animation: fadeIn 0.4s ease-in; }
@@ -139,12 +142,25 @@
 
       <!-- Output Panel -->
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h2 class="font-semibold text-slate-700">הטקסט המוכן</h2>
-          <button onclick="copyText()" id="btn-copy"
-            class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 px-4 rounded-lg transition-all">
-            📋 העתקה
-          </button>
+        <div class="p-6 border-b border-slate-100">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-slate-700">הטקסט המוכן</h2>
+            <button onclick="copyText()" id="btn-copy"
+              class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 px-4 rounded-lg transition-all">
+              📋 העתקה
+            </button>
+          </div>
+          <!-- Output Tabs -->
+          <div id="output-tabs" class="hidden flex gap-2">
+            <button onclick="switchOutput('marketing')" id="otab-marketing"
+              class="out-active flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all">
+              📄 טקסט שיווקי
+            </button>
+            <button onclick="switchOutput('whatsapp')" id="otab-whatsapp"
+              class="out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all">
+              💬 הודעת וואטסאפ
+            </button>
+          </div>
         </div>
 
         <!-- Empty State -->
@@ -181,6 +197,8 @@
 
   <script>
     let currentMode = 'form';
+    let currentOutput = 'marketing';
+    let results = { marketing: '', whatsapp: '' };
 
     function switchTab(mode) {
       currentMode = mode;
@@ -188,6 +206,13 @@
       document.getElementById('tab-free').className = mode === 'free' ? 'tab-active flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all' : 'tab-inactive flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all';
       document.getElementById('panel-form').classList.toggle('hidden', mode !== 'form');
       document.getElementById('panel-free').classList.toggle('hidden', mode !== 'free');
+    }
+
+    function switchOutput(type) {
+      currentOutput = type;
+      document.getElementById('otab-marketing').className = type === 'marketing' ? 'out-active flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all' : 'out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all';
+      document.getElementById('otab-whatsapp').className = type === 'whatsapp' ? 'out-active flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all' : 'out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all';
+      document.getElementById('output-text').textContent = results[type];
     }
 
     function showState(state) {
@@ -244,7 +269,12 @@
         });
         const data = await res.json();
         if (data.error) { showError(data.error); return; }
-        document.getElementById('output-text').textContent = data.result;
+        results.marketing = data.result;
+        results.whatsapp = data.whatsapp;
+        currentOutput = 'marketing';
+        switchOutput('marketing');
+        document.getElementById('output-tabs').classList.remove('hidden');
+        document.getElementById('output-tabs').classList.add('flex');
         showState('result-state');
         document.getElementById('btn-copy').classList.remove('hidden');
       } catch (e) {
@@ -266,7 +296,7 @@
     }
 
     async function copyText() {
-      const text = document.getElementById('output-text').textContent;
+      const text = results[currentOutput] || document.getElementById('output-text').textContent;
       await navigator.clipboard.writeText(text);
       const btn = document.getElementById('btn-copy');
       btn.textContent = '✅ הועתק!';

@@ -9,6 +9,32 @@ app = Flask(__name__)
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
+WHATSAPP_PROMPT = """אתה כותב תוכן לוואטסאפ המתמחה בהודעות קצרות ומושכות לאירועים וסדנאות בעברית.
+
+כתוב הודעת וואטסאפ לפי המבנה הבא בדיוק:
+
+שורה 1: אמוג'י מתאים + שם האירוע
+שורה 2: ריקה
+שורה 3-4: משפט פתיחה רגשי וקצר — פנייה ישירה לקהל, מה הבעיה שהאירוע פותר
+שורה ריקה
+שורה: תיאור קצר של מה ילמדו/יקבלו — 2-3 שורות עם אמוג'י
+שורה ריקה
+מתי?
+📅 [יום] | [תאריך] | [שעה]
+💻 [פורמט - זום/פנים אל פנים/היברידי]
+שורה ריקה
+🔗 להרשמה >> [אם ניתן קישור, שים אותו. אם לא — כתוב: [קישור להרשמה]]
+שורה ריקה
+📞 לפרטים — [אם ניתן טלפון/מייל, שים אותו. אם לא — השמט שורה זו]
+
+חוקים:
+- הודעה קצרה ומושכת — לא יותר מ-15 שורות סה״כ
+- שימוש נכון באמוג'י — לא יותר מ-2-3 לשורה
+- טון חם, ישיר, מזמין
+- כתוב בעברית תקנית
+- אל תוסיף מידע שלא ניתן לך
+- אל תוסיף כוכביות, קווים או תגיות"""
+
 SYSTEM_PROMPT = """אתה כותב שיווקי מקצועי המתמחה בכתיבת תוכן לאירועים וסדנאות בעברית.
 
 כשתקבל מידע על אירוע, כתוב טקסט שיווקי לפי המבנה הבא בדיוק (ללא כוכביות, ללא תווים מיוחדים, ללא מספור):
@@ -73,7 +99,7 @@ def generate():
         return jsonify({"error": "לא הוזן מידע"}), 400
 
     try:
-        response = client.chat.completions.create(
+        marketing_response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -81,7 +107,18 @@ def generate():
             ],
             max_tokens=2048,
         )
-        return jsonify({"result": response.choices[0].message.content})
+        whatsapp_response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": WHATSAPP_PROMPT},
+                {"role": "user", "content": f"כתוב הודעת וואטסאפ לאירוע הבא:\n\n{event_info}"},
+            ],
+            max_tokens=1024,
+        )
+        return jsonify({
+            "result": marketing_response.choices[0].message.content,
+            "whatsapp": whatsapp_response.choices[0].message.content,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
