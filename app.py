@@ -1,0 +1,90 @@
+from flask import Flask, render_template, request, jsonify
+from groq import Groq
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__)
+
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+SYSTEM_PROMPT = """אתה כותב שיווקי מקצועי המתמחה בכתיבת תוכן לאירועים וסדנאות בעברית.
+
+כשתקבל מידע על אירוע, כתוב טקסט שיווקי לפי המבנה הבא בדיוק (ללא כוכביות, ללא תווים מיוחדים, ללא מספור):
+
+שורה 1: שם האירוע/הסדנה בלבד
+שורה 2: ריקה
+שורה 3-5: פתיחה רגשית ומשכנעת — 2-3 משפטים שמתארים את האתגר או הבעיה שהאירוע פותר. פנייה ישירה לקהל.
+שורה ריקה
+משפט הצעת ערך: "ב[שם האירוע] תוכלו..." — מה הם יקבלו, מה ישתנה עבורם.
+שורה ריקה
+תיאור האירוע עצמו: איך הוא מתקיים (פנים אל פנים / אונליין), מה הפורמט.
+שורה ריקה
+"מה נלמד ב[שם]?"
+שורה ריקה
+[נושאים — כל נושא בשורה נפרדת, מופרד בפסיק מהבא, ללא נקודות ו-ללא מספור]
+שורה ריקה
+"מי צריך [שם]?"
+שורה ריקה
+[תיאור קהל היעד]
+שורה ריקה
+"מתי?"
+[יום + תאריך]
+[שעה]
+שורה ריקה
+"איפה?"
+[כתובת]
+
+חוקים:
+- כתוב בעברית תקנית
+- טון חם, מזמין, שיווקי אך אמיתי
+- אל תוסיף כותרות מיותרות, תגיות HTML, כוכביות או קווים
+- אל תוסיף מידע שלא ניתן לך
+- הטקסט צריך להיות מוכן להעתקה ישירה לאתר"""
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/generate", methods=["POST"])
+def generate():
+    data = request.json
+    mode = data.get("mode", "free")
+
+    if mode == "free":
+        event_info = data.get("text", "")
+    else:
+        fields = data.get("fields", {})
+        event_info = f"""שם האירוע: {fields.get('name', '')}
+סוג האירוע: {fields.get('type', '')}
+תחום: {fields.get('domain', '')}
+תיאור כללי: {fields.get('description', '')}
+מה ילמדו המשתתפים: {fields.get('topics', '')}
+קהל יעד: {fields.get('audience', '')}
+פורמט: {fields.get('format', 'פנים אל פנים')}
+תאריך: {fields.get('date', '')}
+שעה: {fields.get('time', '')}
+מיקום: {fields.get('location', '')}"""
+
+    if not event_info.strip():
+        return jsonify({"error": "לא הוזן מידע"}), 400
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"כתוב טקסט שיווקי לאירוע הבא:\n\n{event_info}"},
+            ],
+            max_tokens=2048,
+        )
+        return jsonify({"result": response.choices[0].message.content})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=True)

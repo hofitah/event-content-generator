@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מחולל תוכן לאירועים וסדנאות</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Assistant', sans-serif; }
+    .tab-active { background: #4f46e5; color: white; }
+    .tab-inactive { background: #f1f5f9; color: #64748b; }
+    .tab-inactive:hover { background: #e2e8f0; }
+    textarea { resize: none; }
+    .output-text { white-space: pre-wrap; line-height: 1.9; }
+    .fade-in { animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .copy-success { animation: flash 1s ease; }
+    @keyframes flash { 0%,100% { background: #4f46e5; } 50% { background: #16a34a; } }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold text-slate-800">✍️ מחולל תוכן לאירועים</h1>
+        <p class="text-sm text-slate-500">הזינו פרטים, קבלו טקסט שיווקי מוכן</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Input Panel -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-6 border-b border-slate-100">
+          <h2 class="font-semibold text-slate-700 mb-4">פרטי האירוע</h2>
+          <!-- Tabs -->
+          <div class="flex gap-2">
+            <button onclick="switchTab('form')" id="tab-form"
+              class="tab-active flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all">
+              טופס מובנה
+            </button>
+            <button onclick="switchTab('free')" id="tab-free"
+              class="tab-inactive flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all">
+              טקסט חופשי
+            </button>
+          </div>
+        </div>
+
+        <!-- Form Mode -->
+        <div id="panel-form" class="p-6 space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-slate-600 mb-1">שם האירוע / הסדנה *</label>
+              <input id="f-name" type="text" placeholder='לדוגמה: סדנת הכנה לריאיון עבודה'
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-600 mb-1">סוג האירוע</label>
+              <select id="f-type" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                <option>סדנה</option>
+                <option>כנס</option>
+                <option>הרצאה</option>
+                <option>קורס</option>
+                <option>מפגש</option>
+                <option>וובינר</option>
+                <option>סיור</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-600 mb-1">פורמט</label>
+              <select id="f-format" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                <option>פנים אל פנים</option>
+                <option>אונליין (זום)</option>
+                <option>היברידי</option>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-slate-600 mb-1">תחום *</label>
+              <input id="f-domain" type="text" placeholder='לדוגמה: קריירה, בריאות, עסקים...'
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-slate-600 mb-1">תיאור כללי *</label>
+              <textarea id="f-description" rows="3" placeholder="במה עוסקת הסדנה? מה הבעיה שהיא פותרת?"
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-slate-600 mb-1">מה ילמדו / יקבלו המשתתפים *</label>
+              <textarea id="f-topics" rows="3" placeholder="פרטו את הנושאים העיקריים, מה הם יצאו איתו..."
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-slate-600 mb-1">קהל יעד *</label>
+              <input id="f-audience" type="text" placeholder='לדוגמה: כל מי שמחפש עבודה ורוצה להתכונן לריאיון'
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-600 mb-1">תאריך</label>
+              <input id="f-date" type="text" placeholder='לדוגמה: יום שלישי, 24.03.26'
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-600 mb-1">שעה</label>
+              <input id="f-time" type="text" placeholder='לדוגמה: 09:30'
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-slate-600 mb-1">מיקום</label>
+              <input id="f-location" type="text" placeholder='לדוגמה: בן יהודה 34, קומה 8, תל אביב'
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Free Text Mode -->
+        <div id="panel-free" class="p-6 hidden">
+          <label class="block text-sm font-medium text-slate-600 mb-2">הדביקו או הקלידו כל מידע שיש לכם על האירוע</label>
+          <textarea id="free-text" rows="18"
+            placeholder="לדוגמה:&#10;סדנת הכנה לריאיון עבודה&#10;תאריך: 24.3.26 בשעה 9:30&#10;כתובת: בן יהודה 34, ק׳ 8&#10;נלמד: הכנה לשאלות נפוצות, שפת גוף, רושם ראשוני...&#10;&#10;כל טקסט חופשי יעבוד!"
+            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="px-6 pb-6">
+          <button onclick="generate()" id="btn-generate"
+            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2">
+            <span id="btn-text">✨ יצירת טקסט</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Output Panel -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+          <h2 class="font-semibold text-slate-700">הטקסט המוכן</h2>
+          <button onclick="copyText()" id="btn-copy"
+            class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 px-4 rounded-lg transition-all">
+            📋 העתקה
+          </button>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="flex-1 flex flex-col items-center justify-center p-10 text-center">
+          <div class="text-5xl mb-4">📝</div>
+          <p class="text-slate-400 text-sm">הזינו פרטים בצד שמאל<br />וקבלו טקסט שיווקי מוכן</p>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading-state" class="hidden flex-1 flex flex-col items-center justify-center p-10 text-center">
+          <svg class="spinner w-10 h-10 text-indigo-500 mb-4" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <p class="text-slate-400 text-sm">כותב עבורך...</p>
+        </div>
+
+        <!-- Result -->
+        <div id="result-state" class="hidden flex-1 p-6 overflow-y-auto fade-in">
+          <p id="output-text" class="output-text text-slate-700 text-sm leading-relaxed"></p>
+        </div>
+
+        <!-- Error -->
+        <div id="error-state" class="hidden flex-1 flex items-center justify-center p-10">
+          <div class="text-center">
+            <div class="text-4xl mb-3">⚠️</div>
+            <p id="error-msg" class="text-red-500 text-sm"></p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    let currentMode = 'form';
+
+    function switchTab(mode) {
+      currentMode = mode;
+      document.getElementById('tab-form').className = mode === 'form' ? 'tab-active flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all' : 'tab-inactive flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all';
+      document.getElementById('tab-free').className = mode === 'free' ? 'tab-active flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all' : 'tab-inactive flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all';
+      document.getElementById('panel-form').classList.toggle('hidden', mode !== 'form');
+      document.getElementById('panel-free').classList.toggle('hidden', mode !== 'free');
+    }
+
+    function showState(state) {
+      ['empty-state', 'loading-state', 'result-state', 'error-state'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+        document.getElementById(id).classList.remove('flex', 'flex-1');
+      });
+      const el = document.getElementById(state);
+      el.classList.remove('hidden');
+      el.classList.add('flex', 'flex-1');
+      if (state === 'result-state') {
+        el.classList.remove('flex');
+        el.classList.add('block');
+      }
+    }
+
+    async function generate() {
+      const btn = document.getElementById('btn-generate');
+      const btnText = document.getElementById('btn-text');
+      btn.disabled = true;
+      btnText.textContent = 'כותב...';
+      showState('loading-state');
+      document.getElementById('btn-copy').classList.add('hidden');
+
+      let body;
+      if (currentMode === 'free') {
+        const text = document.getElementById('free-text').value.trim();
+        if (!text) { showError('אנא הזינו מידע על האירוע'); resetBtn(); return; }
+        body = { mode: 'free', text };
+      } else {
+        const name = document.getElementById('f-name').value.trim();
+        if (!name) { showError('אנא הזינו לפחות את שם האירוע'); resetBtn(); return; }
+        body = {
+          mode: 'form',
+          fields: {
+            name, type: document.getElementById('f-type').value,
+            format: document.getElementById('f-format').value,
+            domain: document.getElementById('f-domain').value,
+            description: document.getElementById('f-description').value,
+            topics: document.getElementById('f-topics').value,
+            audience: document.getElementById('f-audience').value,
+            date: document.getElementById('f-date').value,
+            time: document.getElementById('f-time').value,
+            location: document.getElementById('f-location').value,
+          }
+        };
+      }
+
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.error) { showError(data.error); return; }
+        document.getElementById('output-text').textContent = data.result;
+        showState('result-state');
+        document.getElementById('btn-copy').classList.remove('hidden');
+      } catch (e) {
+        showError('שגיאה בחיבור לשרת');
+      } finally {
+        resetBtn();
+      }
+    }
+
+    function showError(msg) {
+      document.getElementById('error-msg').textContent = msg;
+      showState('error-state');
+    }
+
+    function resetBtn() {
+      const btn = document.getElementById('btn-generate');
+      btn.disabled = false;
+      document.getElementById('btn-text').textContent = '✨ יצירת טקסט';
+    }
+
+    async function copyText() {
+      const text = document.getElementById('output-text').textContent;
+      await navigator.clipboard.writeText(text);
+      const btn = document.getElementById('btn-copy');
+      btn.textContent = '✅ הועתק!';
+      btn.classList.add('copy-success');
+      setTimeout(() => { btn.textContent = '📋 העתקה'; btn.classList.remove('copy-success'); }, 2000);
+    }
+  </script>
+</body>
+</html>
