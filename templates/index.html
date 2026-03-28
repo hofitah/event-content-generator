@@ -158,7 +158,11 @@
             </button>
             <button onclick="switchOutput('whatsapp')" id="otab-whatsapp"
               class="out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all">
-              💬 הודעת וואטסאפ
+              💬 וואטסאפ
+            </button>
+            <button onclick="switchOutput('facebook')" id="otab-facebook"
+              class="out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all">
+              👍 פייסבוק
             </button>
           </div>
         </div>
@@ -198,7 +202,7 @@
   <script>
     let currentMode = 'form';
     let currentOutput = 'marketing';
-    let results = { marketing: '', whatsapp: '' };
+    let results = { marketing: '', whatsapp: '', facebook: '' };
 
     function switchTab(mode) {
       currentMode = mode;
@@ -210,8 +214,11 @@
 
     function switchOutput(type) {
       currentOutput = type;
-      document.getElementById('otab-marketing').className = type === 'marketing' ? 'out-active flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all' : 'out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all';
-      document.getElementById('otab-whatsapp').className = type === 'whatsapp' ? 'out-active flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all' : 'out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all';
+      ['marketing', 'whatsapp', 'facebook'].forEach(t => {
+        document.getElementById('otab-' + t).className = t === type
+          ? 'out-active flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all'
+          : 'out-inactive flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all';
+      });
       document.getElementById('output-text').textContent = results[type];
     }
 
@@ -271,6 +278,7 @@
         if (data.error) { showError(data.error); return; }
         results.marketing = data.result;
         results.whatsapp = data.whatsapp;
+        results.facebook = data.facebook;
         currentOutput = 'marketing';
         switchOutput('marketing');
         document.getElementById('output-tabs').classList.remove('hidden');
