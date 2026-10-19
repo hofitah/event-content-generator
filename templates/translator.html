@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מתרגם בזמן אמת</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Assistant', sans-serif; }
+    .output-text { white-space: pre-wrap; line-height: 1.9; }
+    .fade-in { animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pulse-dot { animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    .src-active { background: #4f46e5; color: white; }
+    .src-inactive { background: #f1f5f9; color: #64748b; }
+    .src-inactive:hover { background: #e2e8f0; }
+    .hide-en .seg-en { display: none; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-slate-800">🎧 מתרגם בזמן אמת</h1>
+        <p class="text-sm text-slate-500">אנגלית ← עברית, עם תמלול וסיכום בסוף</p>
+      </div>
+      <a href="/" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">✍️ למחולל התוכן</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8 space-y-6">
+
+    <!-- Controls -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">שם ההקלטה (לא חובה)</label>
+          <input id="title" type="text" placeholder="לדוגמה: הרצאה על בינה מלאכותית"
+            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">מקור השמע</label>
+          <div class="flex gap-2">
+            <button onclick="setSource('mic')" id="src-mic"
+              class="src-active flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all">🎤 מיקרופון</button>
+            <button onclick="setSource('tab')" id="src-tab"
+              class="src-inactive flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all">🖥️ שמע מלשונית / זום</button>
+          </div>
+        </div>
+      </div>
+      <p id="tab-hint" class="hidden text-xs text-slate-500">
+        בחלון השיתוף בחרו את הלשונית או המסך שמשמיעים את הדיבור, וסמנו "שיתוף אודיו". עובד בכרום ובאדג' במחשב.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button onclick="toggleRecording()" id="btn-rec"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-all flex items-center gap-2">
+          <span id="btn-rec-text">▶️ התחלת תרגום</span>
+        </button>
+        <div id="status" class="hidden flex items-center gap-2 text-sm text-slate-600">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500 pulse-dot"></span>
+          <span>מקליט</span>
+          <span id="elapsed" class="font-mono">00:00</span>
+        </div>
+        <div id="level-wrap" class="hidden w-32 h-2 bg-slate-100 rounded-full overflow-hidden" title="עוצמת קול">
+          <div id="level" class="h-full bg-green-500 transition-all" style="width:0%"></div>
+        </div>
+        <span id="pending" class="hidden text-xs text-slate-400"></span>
+        <label class="mr-auto flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+          <input id="show-en" type="checkbox" checked onchange="toggleEnglish()" class="accent-indigo-600" />
+          הצג גם את המקור באנגלית
+        </label>
+      </div>
+      <div id="error" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3"></div>
+    </div>
+
+    <!-- Live transcript -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+        <h2 class="font-semibold text-slate-700">תרגום ותמלול</h2>
+        <span id="seg-count" class="text-xs text-slate-400"></span>
+      </div>
+      <div id="transcript" class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+        <div id="empty" class="text-center text-slate-400 py-16">
+          <div class="text-5xl mb-3">🎙️</div>
+          <p>לחצו על "התחלת תרגום" והתחילו לדבר באנגלית</p>
+          <p class="text-xs mt-1">התרגום מופיע כל כמה שניות</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div id="summary-card" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden fade-in">
+      <div class="p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+        <h2 class="font-semibold text-slate-700">📝 סיכום</h2>
+        <div class="flex gap-2">
+          <button onclick="copySummary()" id="btn-copy"
+            class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium py-2 px-4 rounded-lg transition-all">📋 העתקת הסיכום</button>
+          <button onclick="downloadAll()"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-all">⬇️ הורדת תמלול וסיכום</button>
+        </div>
+      </div>
+      <div class="p-6">
+        <div id="summary-loading" class="flex items-center gap-3 text-slate-500">
+          <svg class="spinner w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40 20"/></svg>
+          מכין סיכום...
+        </div>
+        <div id="summary" class="output-text text-slate-700 hidden"></div>
+        <p id="saved-as" class="text-xs text-slate-400 mt-4 hidden"></p>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const SEGMENT_MS = 5000;        // length of each audio chunk sent for translation
+    const SILENCE_THRESHOLD = 0.012; // chunks whose peak RMS stays below this are skipped
+
+    let source = 'mic';
+    let recording = false;
+    let stream, audioStream, audioCtx, analyser, levelFrame;
+    let currentRec, segmentDone, segmentTimer, clockTimer;
+    let startedAt = 0;
+    let queue = Promise.resolve();
+    let pendingCount = 0;
+    let segments = [];
+    let summaryText = '';
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      document.getElementById('src-tab').classList.add('hidden');
+    }
+
+    function setSource(s) {
+      if (recording) return;
+      source = s;
+      document.getElementById('src-mic').className = (s === 'mic' ? 'src-active' : 'src-inactive') + ' flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all';
+      document.getElementById('src-tab').className = (s === 'tab' ? 'src-active' : 'src-inactive') + ' flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all';
+      document.getElementById('tab-hint').classList.toggle('hidden', s !== 'tab');
+    }
+
+    function toggleEnglish() {
+      document.getElementById('transcript').classList.toggle('hide-en', !document.getElementById('show-en').checked);
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.classList.toggle('hidden', !msg);
+    }
+
+    function pickMimeType() {
+      const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+      return types.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+    }
+
+    function formatTime(ms) {
+      const total = Math.floor(ms / 1000);
+      const m = String(Math.floor(total / 60)).padStart(2, '0');
+      const s = String(total % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function currentRms() {
+      const buf = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (const v of buf) sum += v * v;
+      return Math.sqrt(sum / buf.length);
+    }
+
+    function drawLevel() {
+      document.getElementById('level').style.width = Math.min(100, currentRms() * 600) + '%';
+      levelFrame = requestAnimationFrame(drawLevel);
+    }
+
+    async function toggleRecording() {
+      if (recording) await stopRecording();
+      else await startRecording();
+    }
+
+    async function startRecording() {
+      showError('');
+      try {
+        if (source === 'tab') {
+          stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+          if (!stream.getAudioTracks().length) {
+            stream.getTracks().forEach(t => t.stop());
+            showError('לא שותף אודיו. נסו שוב וסמנו "שיתוף אודיו" בחלון השיתוף.');
+            return;
+          }
+          stream.getVideoTracks().forEach(t => t.stop());
+          audioStream = new MediaStream(stream.getAudioTracks());
+        } else {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+          audioStream = stream;
+        }
+      } catch (e) {
+        showError('אין גישה לשמע: ' + e.message);
+        return;
+      }
+      // Stop cleanly if the user ends the share from the browser bar
+      audioStream.getAudioTracks()[0].addEventListener('ended', () => { if (recording) stopRecording(); });
+
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      audioCtx.createMediaStreamSource(audioStream).connect(analyser);
+
+      // A new session starts a fresh transcript
+      segments = [];
+      summaryText = '';
+      document.querySelectorAll('#transcript .seg').forEach(el => el.remove());
+      document.getElementById('empty').classList.remove('hidden');
+      document.getElementById('summary-card').classList.add('hidden');
+      updateCount();
+
+      recording = true;
+      startedAt = Date.now();
+      document.getElementById('btn-rec').classList.replace('bg-indigo-600', 'bg-red-600');
+      document.getElementById('btn-rec').classList.replace('hover:bg-indigo-700', 'hover:bg-red-700');
+      document.getElementById('btn-rec-text').textContent = '⏹️ סיום וסיכום';
+      document.getElementById('status').classList.remove('hidden');
+      document.getElementById('level-wrap').classList.remove('hidden');
+      document.getElementById('src-mic').disabled = true;
+      document.getElementById('src-tab').disabled = true;
+      clockTimer = setInterval(() => {
+        document.getElementById('elapsed').textContent = formatTime(Date.now() - startedAt);
+      }, 500);
+      drawLevel();
+      startSegment();
+    }
+
+    // Each segment is its own MediaRecorder run, so every blob is a complete,
+    // independently decodable audio file that Whisper can accept.
+    function startSegment() {
+      if (!recording) return;
+      const mimeType = pickMimeType();
+      const rec = new MediaRecorder(audioStream, mimeType ? { mimeType } : {});
+      const chunks = [];
+      const offset = Date.now() - startedAt;
+      let peak = 0;
+      const meter = setInterval(() => { peak = Math.max(peak, currentRms()); }, 100);
+
+      rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      segmentDone = new Promise(resolve => {
+        rec.onstop = () => {
+          clearInterval(meter);
+          const blob = new Blob(chunks, { type: rec.mimeType || mimeType });
+          if (peak >= SILENCE_THRESHOLD && blob.size > 1000) enqueue(blob, offset);
+          resolve();
+        };
+      });
+      rec.start();
+      currentRec = rec;
+      segmentTimer = setTimeout(() => {
+        if (rec.state !== 'inactive') rec.stop();
+        startSegment();
+      }, SEGMENT_MS);
+    }
+
+    function enqueue(blob, offset) {
+      pendingCount++;
+      updatePending();
+      queue = queue.then(() => processChunk(blob, offset)).finally(() => {
+        pendingCount--;
+        updatePending();
+      });
+    }
+
+    function updatePending() {
+      const el = document.getElementById('pending');
+      el.textContent = pendingCount ? `מתרגם... (${pendingCount})` : '';
+      el.classList.toggle('hidden', !pendingCount);
+    }
+
+    async function processChunk(blob, offset) {
+      const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const form = new FormData();
+      form.append('audio', blob, `chunk.${ext}`);
+      form.append('context', segments.slice(-3).map(s => s.english).join(' '));
+      try {
+        const res = await fetch('/translator/chunk', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (!data.english) return;
+        const seg = { time: formatTime(offset), english: data.english, hebrew: data.hebrew };
+        segments.push(seg);
+        renderSegment(seg);
+      } catch (e) {
+        showError('שגיאה בתרגום קטע: ' + e.message);
+      }
+    }
+
+    function renderSegment(seg) {
+      document.getElementById('empty').classList.add('hidden');
+      const box = document.getElementById('transcript');
+      const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+      const el = document.createElement('div');
+      el.className = 'seg fade-in flex gap-4';
+      el.innerHTML = `
+        <span class="text-xs text-slate-400 font-mono pt-1.5 shrink-0"></span>
+        <div class="space-y-1 min-w-0">
+          <p class="seg-he text-lg text-slate-800 leading-relaxed"></p>
+          <p class="seg-en text-sm text-slate-400 leading-relaxed" dir="ltr" style="text-align:left"></p>
+        </div>`;
+      el.children[0].textContent = seg.time;
+      el.querySelector('.seg-he').textContent = seg.hebrew;
+      el.querySelector('.seg-en').textContent = seg.english;
+      box.appendChild(el);
+      if (atBottom) box.scrollTop = box.scrollHeight;
+      updateCount();
+    }
+
+    function updateCount() {
+      document.getElementById('seg-count').textContent = segments.length ? `${segments.length} קטעים` : '';
+    }
+
+    async function stopRecording() {
+      recording = false;
+      clearTimeout(segmentTimer);
+      clearInterval(clockTimer);
+      cancelAnimationFrame(levelFrame);
+      const btn = document.getElementById('btn-rec');
+      btn.disabled = true;
+      document.getElementById('btn-rec-text').textContent = '⏳ מסיים...';
+
+      if (currentRec && currentRec.state !== 'inactive') currentRec.stop();
+      await segmentDone;
+      stream.getTracks().forEach(t => t.stop());
+      audioCtx.close();
+      await queue;
+
+      document.getElementById('status').classList.add('hidden');
+      document.getElementById('level-wrap').classList.add('hidden');
+      document.getElementById('src-mic').disabled = false;
+      document.getElementById('src-tab').disabled = false;
+      btn.classList.replace('bg-red-600', 'bg-indigo-600');
+      btn.classList.replace('hover:bg-red-700', 'hover:bg-indigo-700');
+      btn.disabled = false;
+      document.getElementById('btn-rec-text').textContent = '▶️ הקלטה חדשה';
+
+      if (segments.length) await summarize();
+    }
+
+    async function summarize() {
+      const card = document.getElementById('summary-card');
+      const summaryEl = document.getElementById('summary');
+      const savedEl = document.getElementById('saved-as');
+      card.classList.remove('hidden');
+      document.getElementById('summary-loading').classList.remove('hidden');
+      summaryEl.classList.add('hidden');
+      savedEl.classList.add('hidden');
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      try {
+        const res = await fetch('/translator/summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: document.getElementById('title').value, segments }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        summaryText = data.summary;
+        summaryEl.textContent = summaryText;
+        if (data.saved_as) {
+          savedEl.textContent = `התמלול נשמר בשרת: transcripts/${data.saved_as}`;
+          savedEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        summaryText = '';
+        summaryEl.textContent = 'לא הצלחתי ליצור סיכום: ' + e.message + '\nאפשר עדיין להוריד את התמלול.';
+      }
+      document.getElementById('summary-loading').classList.add('hidden');
+      summaryEl.classList.remove('hidden');
+    }
+
+    async function copySummary() {
+      if (!summaryText) return;
+      await navigator.clipboard.writeText(summaryText);
+      const btn = document.getElementById('btn-copy');
+      btn.textContent = '✅ הועתק';
+      setTimeout(() => { btn.textContent = '📋 העתקת הסיכום'; }, 1500);
+    }
+
+    function downloadAll() {
+      const title = document.getElementById('title').value.trim() || 'הקלטה';
+      const date = new Date(startedAt).toLocaleString('he-IL');
+      const lines = [
+        title, date, '',
+        '===== סיכום =====', summaryText || '(אין סיכום)', '',
+        '===== תרגום לעברית =====',
+        ...segments.map(s => `[${s.time}] ${s.hebrew}`), '',
+        '===== Transcript (English) =====',
+        ...segments.map(s => `[${s.time}] ${s.english}`),
+      ];
+      const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${title.replace(/[\\/:*?"<>|]/g, '')}_${new Date(startedAt).toISOString().slice(0, 10)}.txt`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    window.addEventListener('beforeunload', e => {
+      if (recording || (segments.length && !summaryText)) { e.preventDefault(); e.returnValue = ''; }
+    });
+  </script>
+</body>
+</html>

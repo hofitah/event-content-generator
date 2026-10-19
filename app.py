@@ -1,6 +1,9 @@
 from flask import Flask, render_template, request, jsonify
 from groq import Groq
 import os
+import json
+import re
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,6 +11,46 @@ load_dotenv()
 app = Flask(__name__)
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+TRANSCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "transcripts")
+
+# Whisper tends to invent these phrases on silent or near-silent audio
+WHISPER_HALLUCINATIONS = {
+    "thank you.", "thank you", "thanks for watching!", "thanks for watching.",
+    "thank you for watching.", "thank you for watching!", "you", "bye.", ".",
+    "please subscribe.", "subtitles by the amara.org community",
+}
+
+TRANSLATE_PROMPT = """אתה מתורגמן סימולטני מקצועי מאנגלית לעברית.
+
+תקבל קטע קצר מתוך תמלול של דיבור באנגלית, ולפעמים גם הקשר — המשפטים שנאמרו ממש לפניו.
+תרגם לעברית רק את הקטע החדש, לא את ההקשר.
+
+חוקים:
+- תרגום טבעי וזורם בעברית מדוברת תקנית, לא מילולי
+- שמור על שמות פרטיים, מותגים ומונחים טכניים מקובלים (אפשר באנגלית בסוגריים כשזה עוזר)
+- אם הקטע נקטע באמצע משפט — תרגם את מה שיש, בלי להשלים
+- החזר את התרגום בלבד, בלי הסברים, בלי מרכאות ובלי הקדמות"""
+
+SUMMARY_PROMPT = """אתה עוזר שמסכם הרצאות, פגישות ושיחות בעברית.
+
+תקבל תמלול מלא באנגלית. כתוב סיכום בעברית לפי המבנה הבא:
+
+נושא: משפט אחד שמתאר במה עסק הדיבור
+
+תקציר:
+פסקה של 3-5 משפטים עם עיקרי הדברים
+
+נקודות מרכזיות:
+- כל נקודה בשורה נפרדת שמתחילה במקף
+
+משימות והחלטות:
+- רק אם הוזכרו משימות, החלטות או צעדי המשך. אם לא — השמט את החלק הזה לגמרי
+
+חוקים:
+- כתוב בעברית תקנית וברורה
+- אל תמציא מידע שלא מופיע בתמלול
+- בלי כוכביות, בלי סימני markdown ובלי כותרות נוספות"""
 
 WHATSAPP_PROMPT = """אתה כותב תוכן לוואטסאפ המתמחה בהודעות קצרות ומושכות לאירועים וסדנאות בעברית.
 
@@ -157,6 +200,85 @@ def generate():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/translator")
+def translator():
+    return render_template("translator.html")
+
+
+@app.route("/translator/chunk", methods=["POST"])
+def translate_chunk():
+    audio = request.files.get("audio")
+    if not audio:
+        return jsonify({"error": "לא התקבל קובץ שמע"}), 400
+    context = request.form.get("context", "")[-1000:]
+
+    try:
+        transcription = client.audio.transcriptions.create(
+            file=(audio.filename or "chunk.webm", audio.read()),
+            model="whisper-large-v3-turbo",
+            language="en",
+            prompt=context[-500:] or None,
+            response_format="json",
+            temperature=0.0,
+        )
+        english = (transcription.text or "").strip()
+        if not english or english.lower() in WHISPER_HALLUCINATIONS:
+            return jsonify({"english": "", "hebrew": ""})
+
+        user_content = f"הקטע לתרגום:\n{english}"
+        if context:
+            user_content = f"הקשר (לא לתרגם):\n{context}\n\n" + user_content
+        translation = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": TRANSLATE_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=512,
+            temperature=0.2,
+        )
+        return jsonify({
+            "english": english,
+            "hebrew": translation.choices[0].message.content.strip(),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/translator/summary", methods=["POST"])
+def translator_summary():
+    data = request.json or {}
+    segments = data.get("segments", [])
+    english = " ".join(s.get("english", "") for s in segments).strip()
+    if not english:
+        return jsonify({"error": "אין תמלול לסכם"}), 400
+
+    try:
+        summary_response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": SUMMARY_PROMPT},
+                {"role": "user", "content": f"סכם את התמלול הבא:\n\n{english[-100000:]}"},
+            ],
+            max_tokens=2048,
+            temperature=0.3,
+        )
+        summary = summary_response.choices[0].message.content.strip()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    title = re.sub(r"[^\w\- ]", "", data.get("title", ""), flags=re.UNICODE).strip()[:60]
+    filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + (f"_{title.replace(' ', '_')}" if title else "") + ".json"
+    try:
+        os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
+        with open(os.path.join(TRANSCRIPTS_DIR, filename), "w", encoding="utf-8") as f:
+            json.dump({"title": title, "segments": segments, "summary": summary}, f, ensure_ascii=False, indent=2)
+    except OSError:
+        filename = None
+
+    return jsonify({"summary": summary, "saved_as": filename})
 
 
 if __name__ == "__main__":
